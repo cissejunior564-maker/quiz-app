@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Bien gbé - Quiz</title>
+<style>
+  * { box-sizing: border-box; }
+  body { background: linear-gradient(135deg, #6a11cb, #2575fc); font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 20px 15px; color: white; min-height: 100vh; }
+  h1 { font-size: 28px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); margin-bottom: 2px; }
+  .grade { font-size: 13px; opacity: 0.85; margin-bottom: 12px; }
+  .conteneur { max-width: 420px; margin: 0 auto; }
+  .carte-cat { background: rgba(255,255,255,0.15); padding: 18px; margin-bottom: 12px; border-radius: 14px; cursor: pointer; font-size: 18px; font-weight: bold; }
+  .carte-cat:active { background: rgba(255,255,255,0.3); }
+  .meilleur { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+  .timer-barre { height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; margin-bottom: 10px; overflow: hidden; }
+  .timer-remplissage { height: 100%; background: #f1c40f; transition: width 0.1s linear; }
+  .score-barre-conteneur { height: 18px; background: rgba(255,255,255,0.2); border-radius: 9px; margin-bottom: 6px; overflow: hidden; }
+  .score-barre { height: 100%; background: linear-gradient(90deg, #e74c3c, #f1c40f, #27ae60); transition: width 0.3s; }
+  .score-texte { font-size: 13px; margin-bottom: 6px; font-weight: bold; }
+  .streak { font-size: 13px; color: #f1c40f; margin-bottom: 10px; min-height: 16px; }
+  .progression { font-size: 14px; opacity: 0.8; margin-bottom: 8px; }
+  .question { font-size: 20px; margin: 15px 0; min-height: 60px; font-weight: bold; }
+  .option { display: block; width: 100%; padding: 14px; margin-bottom: 10px; font-size: 16px; border-radius: 10px; border: none; background-color: rgba(255,255,255,0.15); color: white; cursor: pointer; }
+  .option.correcte { background-color: #27ae60; }
+  .option.incorrecte { background-color: #e74c3c; }
+  .option.masquee { opacity: 0.25; pointer-events: none; }
+  #boutonIndice { padding: 8px 16px; font-size: 14px; border-radius: 8px; border: none; background: rgba(255,255,255,0.2); color: white; margin-bottom: 12px; cursor: pointer; }
+  .score { font-size: 26px; margin-top: 20px; font-weight: bold; }
+  .gagne { color: #2ecc71; }
+  .perdu { color: #e74c3c; }
+  .record { font-size: 16px; margin-top: 8px; color: #f1c40f; }
+  button.action { padding: 12px 24px; font-size: 16px; border-radius: 10px; border: none; background-color: #f1c40f; color: #2c3e50; font-weight: bold; cursor: pointer; margin-top: 15px; margin-right: 8px; }
+  button.partager { background-color: #3498db; color: white; }
+  .anim-victoire { animation: rebond 0.6s ease; }
+  .anim-defaite { animation: secoue 0.5s ease; }
+  @keyframes rebond { 0%{transform:scale(0.5);} 60%{transform:scale(1.15);} 100%{transform:scale(1);} }
+  @keyframes secoue { 0%,100%{transform:translateX(0);} 25%{transform:translateX(-10px);} 75%{transform:translateX(10px);} }
+</style>
+</head>
+<body>
+<div class="conteneur">
+  <h1>🎯 Bien gbé</h1>
+  <div class="grade" id="gradeJoueur"></div>
+  <div id="ecranCategories">
+    <div id="listeCategories"></div>
+  </div>
+  <div id="jeu" style="display:none;">
+    <div class="score-barre-conteneur"><div class="score-barre" id="scoreBarre"></div></div>
+    <div class="score-texte" id="scoreTexte"></div>
+    <div class="streak" id="streakTexte"></div>
+    <div class="timer-barre"><div class="timer-remplissage" id="timerBarre"></div></div>
+    <div class="progression" id="progression"></div>
+    <div class="question" id="question"></div>
+    <button id="boutonIndice" onclick="utiliserIndice()">💡 Indice 50/50 (-5 pts)</button>
+    <div id="options"></div>
+  </div>
+  <div id="resultat" style="display:none;">
+    <div class="score" id="scoreFinal"></div>
+    <div class="record" id="recordAffiche"></div>
+    <button class="action" onclick="retourCategories()">Autre catégorie</button>
+    <button class="action partager" onclick="partagerScore()">Partager</button>
+  </div>
+</div>
+<script>
+const banqueQuestions = {
+  "Culture générale": [
+    { q: "Quelle est la capitale de la Côte d'Ivoire ?", options: ["Abidjan", "Yamoussoukro", "Bouaké", "San-Pédro"], bonne: 1 },
+    { q: "Quel est le plus grand océan du monde ?", options: ["Atlantique", "Indien", "Arctique", "Pacifique"], bonne: 3 },
+    { q: "Combien de continents y a-t-il ?", options: ["5", "6", "7", "8"], bonne: 2 },
+    { q: "Quelle est la langue la plus parlée au monde ?", options: ["Anglais", "Mandarin", "Espagnol", "Français"], bonne: 1 },
+    { q: "Quel est le plus long fleuve du monde ?", options: ["Amazone", "Nil", "Congo", "Niger"], bonne: 1 },
+    { q: "Quelle est la plus grande ville d'Afrique ?", options: ["Le Caire", "Lagos", "Kinshasa", "Abidjan"], bonne: 1 },
+    { q: "Combien de pays composent l'Afrique de l'Ouest ?", options: ["12", "15", "17", "20"], bonne: 1 },
+    { q: "Quelle monnaie utilise la Côte d'Ivoire ?", options: ["Cedi", "Naira", "Franc CFA", "Dollar"], bonne: 2 },
+    { q: "Quel est le plus petit pays du monde ?", options: ["Monaco", "Vatican", "Saint-Marin", "Liechtenstein"], bonne: 1 },
+    { q: "Quelle tour se trouve à Paris ?", options: ["Tour Eiffel", "Big Ben", "Tour de Pise", "Tour Willis"], bonne: 0 },
+    { q: "Quel pays a la plus grande population du monde ?", options: ["Chine", "Inde", "États-Unis", "Indonésie"], bonne: 1 },
+    { q: "Quelle est la langue officielle du Brésil ?", options: ["Espagnol", "Anglais", "Portugais", "Français"], bonne: 2 },
+    { q: "Quel désert est le plus grand du monde ?", options: ["Sahara", "Gobi", "Kalahari", "Antarctique"], bonne: 3 },
+    { q: "Combien de pays y a-t-il en Afrique ?", options: ["44", "54", "64", "34"], bonne: 1 },
+    { q: "Quel fleuve traverse l'Égypte ?", options: ["Congo", "Niger", "Nil", "Zambèze"], bonne: 2 },
+    { q: "Quelle est la capitale du Sénégal ?", options: ["Dakar", "Thiès", "Saint-Louis", "Touba"], bonne: 0 },
+    { q: "Quel pays est surnommé le pays du matin calme ?", options: ["Japon", "Corée du Sud", "Chine", "Vietnam"], bonne: 1 },
+    { q: "Quelle mer borde l'Algérie au nord ?", options: ["Mer Rouge", "Méditerranée", "Mer Noire", "Atlantique"], bonne: 1 },
+    { q: "Quelle est la capitale du Ghana ?", options: ["Accra", "Kumasi", "Tema", "Cape Coast"], bonne: 0 },
+    { q: "Quel pays a offert la Statue de la Liberté aux USA ?", options: ["Angleterre", "France", "Espagne", "Italie"], bonne: 1 },
+    { q: "Quelle est la plus grande île du monde ?", options: ["Madagascar", "Groenland", "Bornéo", "Sumatra"], bonne: 1 },
+    { q: "Quel pays a inventé le football moderne ?", options: ["Brésil", "Angleterre", "Espagne", "Italie"], bonne: 1 },
+    { q: "Quelle est la capitale du Nigeria ?", options: ["Lagos", "Abuja", "Kano", "Ibadan"], bonne: 1 },
+    { q: "Quel est le plus haut sommet du monde ?", options: ["Kilimandjaro", "Everest", "Mont Blanc", "K2"], bonne: 1 },
+    { q: "Quel pays produit le plus de cacao au monde ?", options: ["Ghana", "Côte d'Ivoire", "Nigeria", "Cameroun"], bonne: 1 }
+  ],
+  "Sport": [
+    { q: "En quelle année la Côte d'Ivoire a-t-elle gagné la CAN à domicile ?", options: ["2015", "2023", "2019", "2021"], bonne: 1 },
+    { q: "Combien de joueurs sur le terrain par équipe au foot ?", options: ["9", "10", "11", "12"], bonne: 2 },
+    { q: "Quel pays a gagné la Coupe du Monde 2022 ?", options: ["France", "Brésil", "Argentine", "Croatie"], bonne: 2 },
+    { q: "Combien de sets pour gagner un match de tennis (best of 5) ?", options: ["2", "3", "4", "5"], bonne: 1 },
+    { q: "Quel sport se joue avec un panier ?", options: ["Volley", "Handball", "Basketball", "Rugby"], bonne: 2 },
+    { q: "Qui est surnommé 'la Panthère' du football ivoirien ?", options: ["Didier Drogba", "Yaya Touré", "Salomon Kalou", "Gervinho"], bonne: 0 },
+    { q: "Combien de temps dure un match de football (temps réglementaire) ?", options: ["80 min", "90 min", "100 min", "120 min"], bonne: 1 },
+    { q: "Dans quel sport utilise-t-on un volant ?", options: ["Tennis", "Squash", "Badminton", "Ping-pong"], bonne: 2 },
+    { q: "Combien de joueurs dans une équipe de basketball sur le terrain ?", options: ["4", "5", "6", "7"], bonne: 1 },
+    { q: "Quel pays organise les JO 2028 ?", options: ["France", "Japon", "États-Unis", "Australie"], bonne: 2 },
+    { q: "Quel club de foot est basé à Abidjan ?", options: ["ASEC Mimosas", "Real Madrid", "PSG", "Barcelone"], bonne: 0 },
+    { q: "Combien de fois la Côte d'Ivoire a-t-elle gagné la CAN ?", options: ["1", "2", "3", "4"], bonne: 2 },
+    { q: "Quel sport pratique Serena Williams ?", options: ["Basketball", "Tennis", "Athlétisme", "Natation"], bonne: 1 },
+    { q: "Combien de km fait un marathon ?", options: ["30 km", "35 km", "42 km", "50 km"], bonne: 2 },
+    { q: "Dans quel sport y a-t-il un K.O. ?", options: ["Judo", "Boxe", "Escrime", "Lutte"], bonne: 1 },
+    { q: "Quelle équipe a le plus de titres en Ligue des Champions ?", options: ["Barcelone", "Real Madrid", "Bayern Munich", "AC Milan"], bonne: 1 },
+    { q: "Combien de anneaux sur le drapeau olympique ?", options: ["4", "5", "6", "7"], bonne: 1 },
+    { q: "Qui est le meilleur buteur de l'histoire de la Coupe du Monde ?", options: ["Pelé", "Miroslav Klose", "Ronaldo", "Messi"], bonne: 1 },
+    { q: "Quel pays a inventé le judo ?", options: ["Chine", "Corée", "Japon", "Thaïlande"], bonne: 2 },
+    { q: "Combien de points vaut un essai au rugby ?", options: ["3", "5", "7", "10"], bonne: 1 },
+    { q: "Quel joueur est surnommé 'CR7' ?", options: ["Messi", "Ronaldo", "Neymar", "Mbappé"], bonne: 1 },
+    { q: "Dans quel sport joue-t-on à Wimbledon ?", options: ["Golf", "Tennis", "Cricket", "Rugby"], bonne: 1 },
+    { q: "Combien de joueurs dans une équipe de volleyball ?", options: ["5", "6", "7", "8"], bonne: 1 },
+    { q: "Quel pays a gagné le plus de Coupes du Monde de foot ?", options: ["Allemagne", "Argentine", "Brésil", "Italie"], bonne: 2 },
+    { q: "Quelle distance fait un 100m en athlétisme ?", options: ["100 mètres", "110 mètres", "90 mètres", "95 mètres"], bonne: 0 }
+  ],
+  "Sciences": [
+    { q: "Quelle planète est la plus proche du soleil ?", options: ["Vénus", "Mars", "Mercure", "Terre"], bonne: 2 },
+    { q: "Combien font 7 x 8 ?", options: ["54", "56", "58", "64"], bonne: 1 },
+    { q: "Quel est le symbole chimique de l'eau ?", options: ["O2", "H2O", "CO2", "H2"], bonne: 1 },
+    { q: "Combien d'os dans le corps humain adulte ?", options: ["186", "206", "226", "246"], bonne: 1 },
+    { q: "Quelle est la vitesse de la lumière (arrondie) ?", options: ["300 000 km/s", "150 000 km/s", "500 000 km/s", "1 000 000 km/s"], bonne: 0 },
+    { q: "Combien de planètes dans le système solaire ?", options: ["7", "8", "9", "10"], bonne: 1 },
+    { q: "Quel organe pompe le sang dans le corps ?", options: ["Poumon", "Foie", "Cœur", "Rein"], bonne: 2 },
+    { q: "Quel gaz respirons-nous principalement ?", options: ["Oxygène", "Azote", "CO2", "Hydrogène"], bonne: 1 },
+    { q: "Combien font 12 x 12 ?", options: ["124", "134", "144", "154"], bonne: 2 },
+    { q: "Quel scientifique a formulé la théorie de la relativité ?", options: ["Newton", "Einstein", "Darwin", "Galilée"], bonne: 1 },
+    { q: "Combien de chromosomes chez l'être humain ?", options: ["42", "44", "46", "48"], bonne: 2 },
+    { q: "Quelle est la formule chimique du sel de table ?", options: ["NaCl", "KCl", "CaCl2", "MgCl2"], bonne: 0 },
+    { q: "Quel est l'animal terrestre le plus rapide ?", options: ["Lion", "Guépard", "Antilope", "Cheval"], bonne: 1 },
+    { q: "Combien de dents a un adulte en moyenne ?", options: ["28", "30", "32", "34"], bonne: 2 },
+    { q: "Quelle partie de la plante fait la photosynthèse ?", options: ["Racine", "Tige", "Feuille", "Fleur"], bonne: 2 },
+    { q: "Quel est le métal le plus léger ?", options: ["Aluminium", "Lithium", "Fer", "Cuivre"], bonne: 1 },
+    { q: "Combien font 15 + 27 ?", options: ["40", "42", "44", "46"], bonne: 1 },
+    { q: "Quel est l'organe qui filtre le sang ?", options: ["Foie", "Rein", "Poumon", "Rate"], bonne: 1 },
+    { q: "Combien de temps la Terre met-elle pour tourner sur elle-même ?", options: ["12h", "24h", "48h", "365 jours"], bonne: 1 },
+    { q: "Quel est le plus grand animal du monde ?", options: ["Éléphant", "Girafe", "Baleine bleue", "Requin baleine"], bonne: 2 },
+    { q: "Combien font 9 x 9 ?", options: ["72", "81", "90", "99"], bonne: 1 },
+    { q: "Quelle est l'unité de mesure de la force ?", options: ["Watt", "Newton", "Joule", "Volt"], bonne: 1 },
+    { q: "Quel gaz les plantes absorbent-elles ?", options: ["Oxygène", "Azote", "CO2", "Hydrogène"], bonne: 2 },
+    { q: "Combien de cœurs a une pieuvre ?", options: ["1", "2", "3", "4"], bonne: 2 },
+    { q: "Quelle est la température de congélation de l'eau ?", options: ["-10°C", "0°C", "5°C", "10°C"], bonne: 1 }
+  ],
+  "Histoire": [
+    { q: "En quelle année la Côte d'Ivoire a-t-elle obtenu son indépendance ?", options: ["1958", "1960", "1962", "1965"], bonne: 1 },
+    { q: "Qui était le premier président de la Côte d'Ivoire ?", options: ["Henri Konan Bédié", "Félix Houphouët-Boigny", "Laurent Gbagbo", "Alassane Ouattara"], bonne: 1 },
+    { q: "En quelle année a eu lieu la Seconde Guerre mondiale (début) ?", options: ["1935", "1939", "1941", "1945"], bonne: 1 },
+    { q: "Quel empire est associé à Soundiata Keïta ?", options: ["Empire du Mali", "Empire Songhaï", "Empire du Ghana", "Empire Ashanti"], bonne: 0 },
+    { q: "En quelle année a débuté la Première Guerre mondiale ?", options: ["1912", "1914", "1916", "1918"], bonne: 1 },
+    { q: "Qui a découvert l'Amérique en 1492 ?", options: ["Vasco de Gama", "Christophe Colomb", "Magellan", "James Cook"], bonne: 1 },
+    { q: "Quelle reine égyptienne est célèbre pour sa beauté ?", options: ["Néfertiti", "Cléopâtre", "Hatchepsout", "Isis"], bonne: 1 },
+    { q: "En quelle année le mur de Berlin est-il tombé ?", options: ["1985", "1987", "1989", "1991"], bonne: 2 },
+    { q: "Quel pharaon a fait construire la grande pyramide de Gizeh ?", options: ["Khéops", "Ramsès II", "Toutânkhamon", "Akhenaton"], bonne: 0 },
+    { q: "Qui était Nelson Mandela ?", options: ["Musicien", "Président sud-africain", "Écrivain français", "Roi zoulou"], bonne: 1 },
+    { q: "En quelle année la France a-t-elle colonisé la Côte d'Ivoire ?", options: ["1843", "1893", "1904", "1920"], bonne: 1 },
+    { q: "Quel royaume précoloniale se trouvait dans l'actuel Ghana ?", options: ["Royaume Ashanti", "Royaume Zoulou", "Royaume Kongo", "Royaume Mossi"], bonne: 0 },
+    { q: "En quelle année l'esclavage a-t-il été aboli en France ?", options: ["1815", "1848", "1870", "1900"], bonne: 1 },
+    { q: "Qui a écrit la Déclaration d'indépendance des États-Unis ?", options: ["George Washington", "Thomas Jefferson", "Abraham Lincoln", "Benjamin Franklin"], bonne: 1 },
+    { q: "Quelle civilisation a construit Machu Picchu ?", options: ["Aztèque", "Maya", "Inca", "Olmèque"], bonne: 2 }
+  ],
+  "Géographie": [
+    { q: "Quel est le plus grand pays du monde en superficie ?", options: ["Chine", "Canada", "Russie", "États-Unis"], bonne: 2 },
+    { q: "Combien de pays frontaliers a la Côte d'Ivoire ?", options: ["3", "4", "5", "6"], bonne: 2 },
+    { q: "Quelle chaîne de montagnes sépare l'Europe et l'Asie ?", options: ["Les Alpes", "L'Oural", "L'Himalaya", "Les Andes"], bonne: 1 },
+    { q: "Quel est le pays le plus peuplé d'Afrique ?", options: ["Égypte", "Éthiopie", "Nigeria", "RDC"], bonne: 2 },
+    { q: "Quel océan borde la Côte d'Ivoire ?", options: ["Océan Indien", "Océan Atlantique", "Océan Pacifique", "Océan Arctique"], bonne: 1 },
+    { q: "Quel est le plus grand désert froid du monde ?", options: ["Sahara", "Antarctique", "Gobi", "Kalahari"], bonne: 1 },
+    { q: "Quelle ville est surnommée la Ville Lumière ?", options: ["Londres", "Rome", "Paris", "New York"], bonne: 2 },
+    { q: "Quel pays a la forme d'une botte ?", options: ["Espagne", "Italie", "Grèce", "Portugal"], bonne: 1 },
+    { q: "Combien de fuseaux horaires y a-t-il dans le monde ?", options: ["12", "24", "36", "48"], bonne: 1 },
+    { q: "Quelle est la plus haute chute d'eau du monde ?", options: ["Chutes Victoria", "Chutes d'Angel", "Niagara", "Chutes d'Iguazu"], bonne: 1 },
+    { q: "Quel pays compte le plus de fuseaux horaires ?", options: ["Russie", "États-Unis", "France", "Chine"], bonne: 2 },
+    { q: "Quelle est la capitale de l'Australie ?", options: ["Sydney", "Melbourne", "Canberra", "Perth"], bonne: 2 },
+    { q: "Quel lac est le plus grand d'Afrique ?", options: ["Lac Tchad", "Lac Victoria", "Lac Malawi", "Lac Tanganyika"], bonne: 1 },
+    { q: "Quelle montagne est la plus haute d'Afrique ?", options: ["Mont Kenya", "Kilimandjaro", "Mont Cameroun", "Mont Atlas"], bonne: 1 },
+    { q: "Combien de régions administratives compte la Côte d'Ivoire ?", options: ["14", "20", "31", "33"], bonne: 2 }
+  ],
+  "Cinéma": [
+    { q: "Qui joue Iron Man dans les films Marvel ?", options: ["Chris Evans", "Robert Downey Jr.", "Chris Hemsworth", "Mark Ruffalo"], bonne: 1 },
+    { q: "Quel film a remporté l'Oscar du meilleur film en 2020 ?", options: ["1917", "Parasite", "Joker", "Once Upon a Time in Hollywood"], bonne: 1 },
+    { q: "Qui a réalisé le film Titanic ?", options: ["Steven Spielberg", "James Cameron", "Christopher Nolan", "Martin Scorsese"], bonne: 1 },
+    { q: "Dans quel film trouve-t-on le personnage de Simba ?", options: ["Madagascar", "Le Roi Lion", "Kung Fu Panda", "Frozen"], bonne: 1 },
+    { q: "Quel acteur joue Jack Sparrow ?", options: ["Johnny Depp", "Brad Pitt", "Orlando Bloom", "Tom Cruise"], bonne: 0 },
+    { q: "Quel est le premier film Marvel du MCU ?", options: ["Iron Man", "Thor", "Captain America", "Hulk"], bonne: 0 },
+    { q: "Qui a réalisé la saga Star Wars originale ?", options: ["Steven Spielberg", "George Lucas", "James Cameron", "Ridley Scott"], bonne: 1 },
+    { q: "Quel film d'animation parle d'un poisson clown ?", options: ["Le Monde de Nemo", "Rio", "Madagascar", "Shrek"], bonne: 0 },
+    { q: "Quel acteur joue Batman dans 'The Dark Knight' ?", options: ["Ben Affleck", "Christian Bale", "George Clooney", "Val Kilmer"], bonne: 1 },
+    { q: "Quel film met en scène le Titanic ?", options: ["Titanic", "Avatar", "Inception", "Gravity"], bonne: 0 },
+    { q: "Qui joue Harry Potter dans les films ?", options: ["Rupert Grint", "Daniel Radcliffe", "Tom Felton", "James Phelps"], bonne: 1 },
+    { q: "Quel réalisateur a fait Inception et Interstellar ?", options: ["Christopher Nolan", "Denis Villeneuve", "David Fincher", "Ridley Scott"], bonne: 0 }
+  ],
+  "Musique": [
+    { q: "Quel artiste a chanté 'Thriller' ?", options: ["Prince", "Michael Jackson", "Stevie Wonder", "James Brown"], bonne: 1 },
+    { q: "Quel groupe a chanté 'Bohemian Rhapsody' ?", options: ["The Beatles", "Queen", "Pink Floyd", "Led Zeppelin"], bonne: 1 },
+    { q: "Quelle chanteuse est surnommée 'Queen B' ?", options: ["Rihanna", "Beyoncé", "Alicia Keys", "Whitney Houston"], bonne: 1 },
+    { q: "Quel style musical est né en Jamaïque ?", options: ["Le Blues", "Le Reggae", "Le Jazz", "La Salsa"], bonne: 1 },
+    { q: "Qui est surnommé le 'roi de la Pop' ?", options: ["Elvis Presley", "Michael Jackson", "Prince", "James Brown"], bonne: 1 },
+    { q: "Quel artiste ivoirien est connu pour le Coupé-décalé ?", options: ["DJ Arafat", "Meiway", "Alpha Blondy", "Magic System"], bonne: 0 },
+    { q: "Quel instrument a 88 touches ?", options: ["Guitare", "Piano", "Violon", "Batterie"], bonne: 1 },
+    { q: "Quel groupe français a chanté 'Get Lucky' ?", options: ["Air", "Daft Punk", "Justice", "Phoenix"], bonne: 1 },
+    { q: "Quelle légende du reggae a chanté 'No Woman No Cry' ?", options: ["Bob Marley", "Peter Tosh", "Jimmy Cliff", "Burning Spear"], bonne: 0 },
+    { q: "Quel artiste ivoirien est surnommé 'le Zouglou' pionnier ?", options: ["Espoir 2000", "Magic System", "Les Garagistes", "Petit Denis"], bonne: 1 }
+  ],
+  "Technologie": [
+    { q: "Qui a fondé Microsoft ?", options: ["Steve Jobs", "Bill Gates", "Mark Zuckerberg", "Elon Musk"], bonne: 1 },
+    { q: "Que signifie le sigle 'WWW' ?", options: ["World Wide Web", "World Wide Wire", "Web World Wide", "Wide World Web"], bonne: 0 },
+    { q: "Quelle entreprise a créé l'iPhone ?", options: ["Samsung", "Google", "Apple", "Huawei"], bonne: 2 },
+    { q: "Que signifie 'IA' ?", options: ["Internet Avancé", "Intelligence Artificielle", "Interface Automatique", "Innovation Appliquée"], bonne: 1 },
+    { q: "Quel réseau social a été créé par Mark Zuckerberg ?", options: ["Twitter", "Instagram", "Facebook", "TikTok"], bonne: 2 },
+    { q: "Que signifie 'USB' ?", options: ["Universal Serial Bus", "United System Board", "Universal System Bus", "United Serial Board"], bonne: 0 },
+    { q: "Quel langage est utilisé pour créer des pages web ?", options: ["Python", "HTML", "Java", "C++"], bonne: 1 },
+    { q: "Quelle entreprise a créé Android ?", options: ["Apple", "Microsoft", "Google", "Samsung"], bonne: 2 },
+    { q: "Que signifie 'GPS' ?", options: ["Global Positioning System", "General Public System", "Global Phone Service", "Geo Positioning Service"], bonne: 0 },
+    { q: "Quel est le moteur de recherche le plus utilisé au monde ?", options: ["Bing", "Yahoo", "Google", "DuckDuckGo"], bonne: 2 }
+  ]
+};
+
+let categorieActuelle = "";
+let questions = [];
+let indexActuel = 0;
+let score = 50;
+let streak = 0;
+let tempsRestant = 10;
+let timerInterval = null;
+let partieTerminee = false;
+let indiceUtilise = false;
+
+function melanger(tableau) {
+  const copie = [...tableau];
+  for (let i = copie.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copie[i], copie[j]] = [copie[j], copie[i]];
+  }
+  return copie;
+}
+
+function jouerSon(bonneReponse) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = bonneReponse ? 880 : 220;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  } catch(e) {}
+}
+
+function totalVictoires() {
+  let total = 0;
+  Object.keys(banqueQuestions).forEach(cat => {
+    total += parseInt(localStorage.getItem("victoires_" + cat) || 0);
+  });
+  return total;
+}
+
+function calculerGrade(total) {
+  if (total >= 20) return "🏆 Maître du Quiz";
+  if (total >= 10) return "🥇 Expert";
+  if (total >= 5) return "🥈 Confirmé";
+  if (total >= 1) return "🥉 Débutant motivé";
+  return "🔰 Nouveau joueur";
+}
+
+function afficherGrade() {
+  document.getElementById("gradeJoueur").innerText = calculerGrade(totalVictoires()) + " · " + totalVictoires() + " victoires au total";
+}
+
+function chargerCategories() {
+  afficherGrade();
+  const liste = document.getElementById("listeCategories");
+  liste.innerHTML = "";
+  Object.keys(banqueQuestions).forEach(cat => {
+    const record = localStorage.getItem("victoires_" + cat) || 0;
+    const div = document.createElement("div");
+    div.className = "carte-cat";
+    div.innerHTML = cat + '<div class="meilleur">Victoires : ' + record + '</div>';
+    div.onclick = () => demarrerQuiz(cat);
+    liste.appendChild(div);
+  });
+}
+
+function demarrerQuiz(cat) {
+  categorieActuelle = cat;
+  questions = melanger(banqueQuestions[cat]);
+  indexActuel = 0;
+  score = 50;
+  streak = 0;
+  partieTerminee = false;
+  document.getElementById("ecranCategories").style.display = "none";
+  document.getElementById("resultat").style.display = "none";
+  document.getElementById("jeu").style.display = "block";
+  chargerQuestion();
+}
+
+function mettreAJourScoreVisuel() {
+  document.getElementById("scoreBarre").style.width = score + "%";
+  document.getElementById("scoreTexte").innerText = "Score : " + score + " / 100";
+  if (streak >= 2) {
+    document.getElementById("streakTexte").innerText = "🔥 Série de " + streak + " bonnes réponses !";
+  } else {
+    document.getElementById("streakTexte").innerText = "";
+  }
+}
+
+function chargerQuestion() {
+  if (partieTerminee) return;
+  if (indexActuel >= questions.length) {
+    afficherResultat(score >= 50);
+    return;
+  }
+  tempsRestant = 10;
+  indiceUtilise = false;
+  document.getElementById("boutonIndice").style.display = "inline-block";
+  const q = questions[indexActuel];
+  document.getElementById("progression").innerText = "Question " + (indexActuel + 1);
+  document.getElementById("question").innerText = q.q;
+  mettreAJourScoreVisuel();
+  const optionsDiv = document.getElementById("options");
+  optionsDiv.innerHTML = "";
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement("button");
+    btn.className = "option";
+    btn.innerText = opt;
+    btn.dataset.index = i;
+    btn.onclick = () => verifier(i, btn);
+    optionsDiv.appendChild(btn);
+  });
+  demarrerTimer();
+}
+
+function utiliserIndice() {
+  if (indiceUtilise || partieTerminee) return;
+  indiceUtilise = true;
+  document.getElementById("boutonIndice").style.display = "none";
+  score = Math.max(0, score - 5);
+  mettreAJourScoreVisuel();
+  const q = questions[indexActuel];
+  const boutons = document.querySelectorAll(".option");
+  let masques = 0;
+  boutons.forEach((b, i) => {
+    if (i !== q.bonne && masques < 2) {
+      b.classList.add("masquee");
+      masques++;
+    }
+  });
+}
+
+function demarrerTimer() {
+  clearInterval(timerInterval);
+  document.getElementById("timerBarre").style.width = "100%";
+  timerInterval = setInterval(() => {
+    tempsRestant -= 0.1;
+    const pourcentage = Math.max(0, (tempsRestant / 10) * 100);
+    document.getElementById("timerBarre").style.width = pourcentage + "%";
+    if (tempsRestant <= 0) {
+      clearInterval(timerInterval);
+      tempsEcoule();
+    }
+  }, 100);
+}
+
+function appliquerResultat(correct) {
+  if (correct) {
+    streak++;
+    const bonus = streak >= 3 ? 15 : 10;
+    score = Math.min(100, score + bonus);
+  } else {
+    streak = 0;
+    score = Math.max(0, score - 10);
+  }
+  mettreAJourScoreVisuel();
+  if (score >= 100) {
+    setTimeout(() => afficherResultat(true), 800);
+    return true;
+  }
+  if (score <= 0) {
+    setTimeout(() => afficherResultat(false), 800);
+    return true;
+  }
+  return false;
+}
+
+function tempsEcoule() {
+  const q = questions[indexActuel];
+  const boutons = document.querySelectorAll(".option");
+  boutons.forEach(b => b.onclick = null);
+  boutons[q.bonne].classList.add("correcte");
+  jouerSon(false);
+  const fini = appliquerResultat(false);
+  if (fini) { partieTerminee = true; return; }
+  setTimeout(() => {
+    indexActuel++;
+    chargerQuestion();
+  }, 1200);
+}
+
+function verifier(choix, btn) {
+  clearInterval(timerInterval);
+  const q = questions[indexActuel];
+  const boutons = document.querySelectorAll(".option");
+  boutons.forEach(b => b.onclick = null);
+  const correct = choix === q.bonne;
+  if (correct) {
+    btn.classList.add("correcte");
+    jouerSon(true);
+  } else {
+    btn.classList.add("incorrecte");
+    boutons[q.bonne].classList.add("correcte");
+    jouerSon(false);
+  }
+  const fini = appliquerResultat(correct);
+  if (fini) { partieTerminee = true; return; }
+  setTimeout(() => {
+    indexActuel++;
+    chargerQuestion();
+  }, 1000);
+}
+
+function afficherResultat(victoire) {
+  partieTerminee = true;
+  document.getElementById("jeu").style.display = "none";
+  document.getElementById("resultat").style.display = "block";
+  const scoreFinalDiv = document.getElementById("scoreFinal");
+  scoreFinalDiv.classList.remove("anim-victoire", "anim-defaite");
+  void scoreFinalDiv.offsetWidth;
+
+  if (victoire) {
+    scoreFinalDiv.innerHTML = '🏆 <span class="gagne">Tu as gagné !</span>';
+    scoreFinalDiv.classList.add("anim-victoire");
+    const victoires = parseInt(localStorage.getItem("victoires_" + categorieActuelle) || 0) + 1;
+    localStorage.setItem("victoires_" + categorieActuelle, victoires);
+    document.getElementById("recordAffiche").innerText = "Total victoires : " + victoires;
+  } else {
+    scoreFinalDiv.innerHTML = '💀 <span class="perdu">Tu as perdu !</span>';
+    scoreFinalDiv.classList.add("anim-defaite");
+    document.getElementById("recordAffiche").innerText = "Score final : " + score + " / 100";
+  }
+}
+
+function partagerScore() {
+  const texte = "J'ai joué à Bien gbé (" + categorieActuelle + ") et j'ai fini avec " + score + "/100 points ! 🎯";
+  if (navigator.share) {
+    navigator.share({ text: texte });
+  } else {
+    alert(texte);
+  }
+}
+
+function retourCategories() {
+  document.getElementById("resultat").style.display = "none";
+  document.getElementById("ecranCategories").style.display = "block";
+  chargerCategories();
+}
+
+chargerCategories();
+</script>
+</body>
+</html>
